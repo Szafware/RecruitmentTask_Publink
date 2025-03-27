@@ -7,4 +7,6 @@ namespace RecruitmentTask.Domain.AuditLogs;
 public interface IAuditLogRepository
 {
 	Task<IEnumerable<AuditLog>> GetAuditLogsAsync(Guid organizationId, int page, int? pageSize = null);
+
+	Task<int> GetAuditLogTotalCountAsync(Guid organizationId);
 }

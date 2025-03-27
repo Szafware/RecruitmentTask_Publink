@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RecruitmentTask.Api.Middleware;
@@ -16,6 +15,17 @@ public class Program
 	{
 		var builder = WebApplication.CreateBuilder(args);
 
+		builder.Services.AddCors(options =>
+		{
+			options.AddPolicy("AllowAllOrigins", policy =>
+			{
+				policy.AllowAnyOrigin()
+					  .AllowAnyHeader()
+					  .AllowAnyMethod();
+			});
+		});
+
+
 		builder.Services.AddControllers();
 
 		builder.Services.AddEndpointsApiExplorer();
@@ -24,7 +34,8 @@ public class Program
 		builder.Services.AddApplication();
 		builder.Services.AddInfrastructure(builder.Configuration);
 
-		var appSettings = builder.Configuration.GetSection("AppSettings") ?? throw new ArgumentException("AppSettings section not found");
+		var appSettings = builder.Configuration.GetSection("AppSettings") 
+			?? throw new ArgumentException("AppSettings section not found");
 
 		builder.Services.Configure<AppSettings>(appSettings);
 
@@ -37,6 +48,8 @@ public class Program
 			app.UseSwagger();
 			app.UseSwaggerUI();
 		}
+
+		app.UseCors("AllowAllOrigins");
 
 		app.UseHttpsRedirection();
 

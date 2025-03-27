@@ -1,11 +1,11 @@
 ﻿using Dapper;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using RecruitmentTask.Domain.AuditLogs;
 using RecruitmentTask.Infrastructure.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace RecruitmentTask.Infrastructure.Repositories;
@@ -13,11 +13,11 @@ namespace RecruitmentTask.Infrastructure.Repositories;
 internal sealed class PostgresAuditLogRepository : IAuditLogRepository
 {
 	private readonly IDbConnection _npgsqlConnection;
-	private readonly AppSettings _appSettings;
+	private readonly IOptions<AppSettings> _appSettings;
 
 	public PostgresAuditLogRepository(
 		IDbConnection npgsqlConnection,
-		AppSettings appSettings)
+		IOptions<AppSettings> appSettings)
 	{
 		_npgsqlConnection = npgsqlConnection;
 		_appSettings = appSettings;
@@ -28,9 +28,12 @@ internal sealed class PostgresAuditLogRepository : IAuditLogRepository
 		var npgsqlConnection = _npgsqlConnection as NpgsqlConnection 
 			?? throw new InvalidOperationException($"{nameof(PostgresAuditLogRepository)} class only supports {nameof(NpgsqlConnection)} connection type.");
 
-		await npgsqlConnection.OpenAsync();
+		if (npgsqlConnection.State != ConnectionState.Open)
+		{
+			await npgsqlConnection.OpenAsync(); 
+		}
 
-		int entityTypeDocumentNumberJoining = _appSettings.EntityTypeDocumentNumberJoining;
+		int entityTypeDocumentNumberJoining = _appSettings.Value.EntityTypeDocumentNumberJoining;
 
 		string query = $@"
 			SELECT 
@@ -41,29 +44,51 @@ internal sealed class PostgresAuditLogRepository : IAuditLogRepository
 			    al.organization_id AS {nameof(AuditLog.OrganizationId)}, 
 			    al.correlation_id AS {nameof(AuditLog.CorrelationId)}, 
 			    al.entity_type AS {nameof(AuditLog.EntityType)},
-				al.old_values AS {nameof(AuditLog.OldValues)},
-				al.new_values AS {nameof(AuditLog.NewValues)},
 				CASE 
-				    WHEN al.entity_type = {entityTypeDocumentNumberJoining} THEN dh.number 
+				    WHEN al.entity_type = @EntityTypeDocumentNumberJoining THEN dh.number 
 				    ELSE NULL 
 				END AS {nameof(AuditLog.ContractNumber)}
 			FROM audit_log al
 			LEFT JOIN document_header dh 
-			    ON al.entity_type = {entityTypeDocumentNumberJoining}
+			    ON al.entity_type = @EntityTypeDocumentNumberJoining
 			    AND al.new_values::jsonb->>'ContractId' = dh.id::text
 			WHERE al.organization_id = @OrganizationId
-			ORDER BY al.created_date DESC;
+			ORDER BY al.created_date DESC
 			LIMIT @PageSize OFFSET @Offset";
 
-		int actualPageSize = pageSize ?? _appSettings.DefaultPageSize;
+		int actualPageSize = pageSize ?? _appSettings.Value.DefaultPageSize;
 
 		var auditLogs = await npgsqlConnection.QueryAsync<AuditLog>(query, new
 		{
 			OrganizationId = organizationId,
+			EntityTypeDocumentNumberJoining = entityTypeDocumentNumberJoining,
 			PageSize = actualPageSize,
 			Offset = (page - 1) * actualPageSize
 		});
 
-		return auditLogs.ToList();
+		return auditLogs;
+	}
+
+	public async Task<int> GetAuditLogTotalCountAsync(Guid organizationId)
+	{
+		var npgsqlConnection = _npgsqlConnection as NpgsqlConnection
+			?? throw new InvalidOperationException($"{nameof(PostgresAuditLogRepository)} class only supports {nameof(NpgsqlConnection)} connection type.");
+
+		if (npgsqlConnection.State != ConnectionState.Open)
+		{
+			await npgsqlConnection.OpenAsync();
+		}
+
+		string query = @"
+			SELECT COUNT(*) 
+			FROM audit_log al
+			WHERE al.organization_id = @OrganizationId";
+
+		int totalCountTask = await npgsqlConnection.ExecuteScalarAsync<int>(query, new
+		{
+			OrganizationId = organizationId
+		});
+
+		return totalCountTask;
 	}
 }

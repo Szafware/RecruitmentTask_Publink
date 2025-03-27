@@ -12,7 +12,6 @@ public static class DependencyInjection
 {
 	public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
 	{
-
 		string connectionString = configuration.GetConnectionString("RekrutacjaDb")
 			?? throw new ArgumentNullException(nameof(configuration));
 

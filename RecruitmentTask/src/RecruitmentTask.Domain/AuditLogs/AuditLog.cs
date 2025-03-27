@@ -16,9 +16,6 @@ public class AuditLog
 
 	public string ContractNumber { get; set; }
 
-	public string OldValues { get; set; }
-	public string NewValues { get; set; }
-
 	public DateTime ActionStartDate { get; set; }
 
 	//public int EntityCount { get; set; }

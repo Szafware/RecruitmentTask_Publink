@@ -35,4 +35,16 @@ public sealed class AuditLogService : IAuditLogService
 
 		return auditLogEntries;
 	}
+
+	public async Task<int> GetTotalCountAsync(Guid organizationId)
+	{
+		if (organizationId == Guid.Empty)
+		{
+			throw new ArgumentException("Organization id must not be empty.");
+		}
+
+		int auditLogTotalCount = await _auditLogRepository.GetAuditLogTotalCountAsync(organizationId);
+
+		return auditLogTotalCount;
+	}
 }
